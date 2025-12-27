@@ -28,7 +28,3 @@ A UI estará em http://localhost:5173 e utilizará o proxy para alcançar a API 
 - Informe o número de WhatsApp e clique em “Enviar código”. O OTP tem validade de 1 minuto e é salvo no SQLite.
 - Valide o código para liberar o registro de passkey (simulada ou via WebAuthn quando disponível).
 - A API registra a passkey e gera tokens OAuth 2.1 via endpoint de Token Ingestion, exibidos no perfil.
-- Após a autenticação, o dashboard permite:
-  - Registrar aplicações OAuth (nome + redirect URI) e listá-las.
-  - Cadastrar servidores MTP/IdP que fornecerão login.
-  - Visualizar tokens emitidos para o telefone corrente e revogá-los.

@@ -11,32 +11,6 @@ app.use(express.json());
 
 initializeDatabase();
 
-type ApplicationRow = {
-  id: number;
-  name: string;
-  redirect_uri: string;
-  created_at: number;
-};
-
-type MTPServerRow = {
-  id: number;
-  name: string;
-  url: string;
-  description: string;
-  created_at: number;
-};
-
-type TokenRow = {
-  phone: string;
-  credential_id: string;
-  access_token: string;
-  refresh_token: string;
-  issued_at: number;
-  expires_in: number;
-  revoked: number;
-  revoked_at: number | null;
-};
-
 app.post('/api/send-code', (req, res) => {
   const phone = String(req.body?.phone || '').trim();
   if (!phone) {
@@ -116,68 +90,6 @@ app.post('/oauth/token-ingestion', (req, res) => {
   res.json({ access_token: accessToken, refresh_token: refreshToken, issued_at: new Date(issuedAt).toISOString(), expires_in: expiresIn });
 });
 
-app.get('/api/apps', (_req, res) => {
-  const apps = db.prepare('SELECT * FROM applications ORDER BY created_at DESC').all() as ApplicationRow[];
-  res.json(apps);
-});
-
-app.post('/api/apps', (req, res) => {
-  const { name, redirectUri } = req.body ?? {};
-  if (!name || !redirectUri) {
-    res.status(400).send('Nome e Redirect URI são obrigatórios.');
-    return;
-  }
-
-  db.prepare('INSERT INTO applications (name, redirect_uri, created_at) VALUES (?, ?, ?)').run(name, redirectUri, Date.now());
-  res.json({ success: true });
-});
-
-app.get('/api/mtp-servers', (_req, res) => {
-  const servers = db.prepare('SELECT * FROM mtp_servers ORDER BY created_at DESC').all() as MTPServerRow[];
-  res.json(servers);
-});
-
-app.post('/api/mtp-servers', (req, res) => {
-  const { name, url, description } = req.body ?? {};
-  if (!name || !url) {
-    res.status(400).send('Nome e URL são obrigatórios.');
-    return;
-  }
-
-  db.prepare('INSERT INTO mtp_servers (name, url, description, created_at) VALUES (?, ?, ?, ?)').run(name, url, description || '', Date.now());
-  res.json({ success: true });
-});
-
-app.get('/api/tokens', (req, res) => {
-  const phone = String(req.query.phone || '').trim();
-  if (!phone) {
-    res.status(400).send('Informe o telefone para listar tokens.');
-    return;
-  }
-
-  const tokens = db
-    .prepare('SELECT * FROM oauth_tokens WHERE phone = ? ORDER BY issued_at DESC')
-    .all(phone) as TokenRow[];
-
-  res.json(tokens);
-});
-
-app.post('/api/tokens/revoke', (req, res) => {
-  const { accessToken } = req.body ?? {};
-  if (!accessToken) {
-    res.status(400).send('Informe o access token para revogar.');
-    return;
-  }
-
-  const result = db.prepare('UPDATE oauth_tokens SET revoked = 1, revoked_at = ? WHERE access_token = ? AND revoked = 0').run(Date.now(), accessToken);
-  if (result.changes === 0) {
-    res.status(404).send('Token não encontrado ou já revogado.');
-    return;
-  }
-
-  res.json({ success: true });
-});
-
 const PORT = 4173;
 app.listen(PORT, () => {
   console.log(`API server listening on port ${PORT}`);
@@ -214,40 +126,9 @@ function initializeDatabase() {
       access_token TEXT NOT NULL,
       refresh_token TEXT NOT NULL,
       issued_at INTEGER NOT NULL,
-      expires_in INTEGER NOT NULL,
-      revoked INTEGER DEFAULT 0,
-      revoked_at INTEGER
+      expires_in INTEGER NOT NULL
     )`
   ).run();
-
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS applications (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      redirect_uri TEXT NOT NULL,
-      created_at INTEGER NOT NULL
-    )`
-  ).run();
-
-  db.prepare(
-    `CREATE TABLE IF NOT EXISTS mtp_servers (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      url TEXT NOT NULL,
-      description TEXT,
-      created_at INTEGER NOT NULL
-    )`
-  ).run();
-
-  const tokenColumns = db.prepare('PRAGMA table_info(oauth_tokens)').all() as { name: string }[];
-  const hasRevoked = tokenColumns.some((col) => col.name === 'revoked');
-  const hasRevokedAt = tokenColumns.some((col) => col.name === 'revoked_at');
-  if (!hasRevoked) {
-    db.prepare('ALTER TABLE oauth_tokens ADD COLUMN revoked INTEGER DEFAULT 0').run();
-  }
-  if (!hasRevokedAt) {
-    db.prepare('ALTER TABLE oauth_tokens ADD COLUMN revoked_at INTEGER').run();
-  }
 }
 
 interface OTPRow {
